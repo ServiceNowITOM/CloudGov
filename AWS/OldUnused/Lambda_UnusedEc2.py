@@ -89,7 +89,7 @@ def lambda_handler(event, context):
     
     #Filter list by missing tags
     if len(oldinstances) > 0:
-        missingInstances = findMissingTags(instances, mytags)
+        missingInstances = findMissingTags(oldinstances, mytags)
     else: 
         return 0
     
