@@ -2,7 +2,10 @@ import boto3
 from datetime import datetime, timedelta
 
 
-# Find Instances older than days that are powered on
+def getAllInstances():
+    instances = [i for i in boto3.resource('ec2').instances.all()]
+    return instances
+    
 def OldInstances(instances, days):
     resIDs = []
     for instance in instances:
@@ -11,30 +14,6 @@ def OldInstances(instances, days):
         if instance.launch_time < timeToCheck:
             resIDs.append(instance)
     return resIDs
-
-def IsCPUOver(perc, instance, days):
-    cw = boto3.client('cloudwatch')
-    now = datetime.now().astimezone()
-    stats = cw.get_metric_statistics(
-        Period=3600,
-        StartTime=datetime.now().astimezone() - timedelta(hours=(days * 24)),
-        EndTime=datetime.now().astimezone(),
-        MetricName='CPUUtilization',
-        Namespace='AWS/EC2',
-        Statistics=['Maximum'],
-        Dimensions=[{'Name':'InstanceId', 'Value':instance}]
-        )
-    
-    for dp in stats['Datapoints']:
-        if (dp['Maximum'] > perc):
-            return True
-        
-
-def getAllInstances():
-    instances = [i for i in boto3.resource('ec2').instances.all()]
-    return instances
-    
-
 
 def findMissingTags(instances, neededtags):
     missingInstances = []
@@ -46,7 +25,9 @@ def findMissingTags(instances, neededtags):
                         missingInstances.append(i)
         return list(set(missingInstances))
     else:
-        return instances  
+        return instances
+        
+        
 
 def PowerOffEC2(resIDs):
     ec2 = boto3.client('ec2')
@@ -56,11 +37,11 @@ def tagAndPowerOff(instance):
     ec2 = boto3.client('ec2')
     resIDs = []
     resIDs.append(instance.instance_id)
-    ec2.create_tags(Resources=resIDs, Tags=[{'Key':'FlaggedUnused', 'Value':'True'}])
+    #ec2.create_tags(Resources=resIDs, Tags=[{'Key':'StartAt', 'Value':'8AM'},{'Key':'StopAt', 'Value':'9PM'}])
 
 def lambda_handler(event, context):
     #days to go back
-    days = 30
+    days = 3
     
     #Tags to ID systems to execute on
     mytags = []
@@ -70,7 +51,8 @@ def lambda_handler(event, context):
     
     #Exclude Machines that were identified already
     #This is a safety net so we dont keep powering machines off that are being used. 
-    mytags.append('FlaggedUnused')
+    mytags.append('StartAt')
+    mytags.append('StopAt')
     
     #Get all instances
     instances = getAllInstances()
@@ -86,10 +68,5 @@ def lambda_handler(event, context):
     
     #Get % Utilized from Id'ed systems
     if len(missingInstances) > 0:
-        
         for missInstance in missingInstances:
-            myr = None
-            myr = IsCPUOver(5, missInstance.instance_id, days)
-            if myr == None:
-                #print("Control")
-                tagAndPowerOff(missInstance)
+            tagAndPowerOff(missInstance)
